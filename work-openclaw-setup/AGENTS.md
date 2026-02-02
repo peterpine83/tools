@@ -2,23 +2,32 @@
 
 Deploy a security-hardened OpenClaw instance on AWS for work use.
 
+**Target: DEV account** (not production)
+
 ## Prerequisites
 
-Before deploying, verify:
+Before deploying, verify you're using the **dev** AWS account:
 
 ```bash
-# 1. AWS credentials configured
-aws sts get-caller-identity
+# 1. Set AWS profile to dev account
+export AWS_PROFILE=dev  # or whatever the dev profile is named
 
-# 2. Get user's IP address (required for SSH restriction)
+# 2. Verify correct account
+aws sts get-caller-identity
+# Should show the DEV account ID, not production
+
+# 3. Get user's IP address (required for SSH restriction)
 curl -s ifconfig.me
 ```
+
+**IMPORTANT:** Ask the user: "What's your AWS profile name for the dev account?" (common names: `dev`, `development`, `work-dev`)
 
 ## Required Information
 
 | Parameter | Required | How to Get |
 |-----------|----------|------------|
-| `KeyName` | Yes | "What's your EC2 key pair name? (check AWS Console → EC2 → Key Pairs)" |
+| `AWS_PROFILE` | Yes | "What's your AWS profile name for the **dev** account?" |
+| `KeyName` | Yes | "What's your EC2 key pair name in the dev account? (AWS Console → EC2 → Key Pairs)" |
 | `AllowedIP` | Yes | "What's your IP? Run: `curl -s ifconfig.me`" |
 | `region` | No (default: us-east-1) | "Which AWS region?" |
 
@@ -28,13 +37,18 @@ curl -s ifconfig.me
 cd sst
 npm install
 
+# IMPORTANT: Use dev AWS profile
+export AWS_PROFILE=dev  # adjust to your dev profile name
+
 # Set required secrets
 npx sst secret set KeyName <key-pair-name>
 npx sst secret set AllowedIP <ip-address>
 
-# Deploy
+# Deploy to dev account
 npx sst deploy --stage production
 ```
+
+**Note:** The `--stage production` refers to SST's stage naming (retain on delete), not the AWS account. The AWS account is controlled by `AWS_PROFILE`.
 
 ## Post-Deployment (REQUIRED)
 

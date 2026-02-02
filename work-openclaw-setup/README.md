@@ -2,6 +2,8 @@
 
 Deploy a **security-hardened** OpenClaw instance on AWS for work use, billed to your work Claude Max account.
 
+**Target: DEV AWS account** (not production)
+
 > **🤖 AI Agents:** See [AGENTS.md](./AGENTS.md) for structured deployment instructions.
 
 ## Security Features
@@ -26,7 +28,10 @@ This setup prioritizes security for enterprise/work environments:
 ### 1. Prerequisites
 
 ```bash
-# Verify AWS credentials
+# Use your DEV AWS account (not production!)
+export AWS_PROFILE=dev  # adjust to your dev profile name
+
+# Verify you're in the right account
 aws sts get-caller-identity
 
 # Get your IP (needed for SSH restriction)
@@ -39,6 +44,9 @@ curl -s ifconfig.me
 cd sst
 npm install
 
+# Make sure dev profile is set
+export AWS_PROFILE=dev
+
 # Set required secrets
 npx sst secret set KeyName your-ec2-keypair-name
 npx sst secret set AllowedIP $(curl -s ifconfig.me)
@@ -46,6 +54,8 @@ npx sst secret set AllowedIP $(curl -s ifconfig.me)
 # Deploy
 npx sst deploy --stage production
 ```
+
+> **Note:** `--stage production` is SST's stage name (controls deletion behavior), not your AWS account. The AWS account is determined by `AWS_PROFILE`.
 
 ### 3. Complete Setup
 
