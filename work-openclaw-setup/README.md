@@ -1,225 +1,115 @@
 # Work OpenClaw AWS Setup
 
-Deploy a separate OpenClaw instance for work, billed to your work's Claude OAuth.
+Deploy a **security-hardened** OpenClaw instance on AWS for work use, billed to your work Claude Max account.
 
-> **🤖 AI Agents:** See [AGENT.md](./AGENT.md) for structured instructions, decision trees, and copy-paste commands.
+> **🤖 AI Agents:** See [AGENTS.md](./AGENTS.md) for structured deployment instructions.
 
-## Deploy Options
+## Security Features
 
-| Option | Best For |
-|--------|----------|
-| **SST v3** | Simplest TypeScript DX, you already use SST |
-| **Pulumi** | Pure IaC, no framework overhead |
-| **Terraform** | Team already uses Terraform |
-| **Manual** | One-off, just want it running |
+This setup prioritizes security for enterprise/work environments:
 
----
+| Feature | Description |
+|---------|-------------|
+| **SSH IP Restriction** | SSH only allowed from your specific IP |
+| **IMDSv2 Required** | Prevents SSRF attacks against instance metadata |
+| **Encrypted Storage** | EBS volume encrypted at rest |
+| **Auto Security Updates** | unattended-upgrades enabled |
+| **Fail2ban** | Protects against SSH brute-force |
+| **No Password Auth** | SSH key-only authentication |
+| **No Root Login** | Root SSH access disabled |
+| **UFW Firewall** | Only necessary ports open |
+| **Hardened Systemd** | NoNewPrivileges, ProtectSystem, etc. |
+| **SSM Access** | Keyless emergency access via AWS Session Manager |
 
-## Option 1: SST v3 (Recommended)
+## Quick Start
+
+### 1. Prerequisites
+
+```bash
+# Verify AWS credentials
+aws sts get-caller-identity
+
+# Get your IP (needed for SSH restriction)
+curl -s ifconfig.me
+```
+
+### 2. Deploy with SST
 
 ```bash
 cd sst
 npm install
 
-# Set your EC2 key pair name as a secret
-npx sst secret set KeyName your-key-name
+# Set required secrets
+npx sst secret set KeyName your-ec2-keypair-name
+npx sst secret set AllowedIP $(curl -s ifconfig.me)
 
 # Deploy
 npx sst deploy --stage production
 ```
 
-That's it. SST outputs your SSH command.
-
-**To tear down:**
-```bash
-npx sst remove --stage production
-```
-
----
-
-## Option 2: Pulumi
+### 3. Complete Setup
 
 ```bash
-cd pulumi
-npm install
+# SSH in (use command from deploy output)
+ssh -i ~/.ssh/your-key.pem ubuntu@<elastic-ip>
 
-# Create stack
-pulumi stack init production
+# Wait for cloud-init (check for this file)
+cat /home/ubuntu/setup-complete.txt
 
-# Set config
-pulumi config set keyName your-key-name
-pulumi config set allowedSshCidr "YOUR.IP.ADDRESS/32"  # optional
-pulumi config set aws:region us-east-1
-
-# Deploy
-pulumi up
-```
-
-**To tear down:**
-```bash
-pulumi destroy
-```
-
----
-
-## Option 3: Terraform
-
-```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars
-
-terraform init
-terraform apply
-```
-
----
-
-## Option 4: Manual (Quick Start)
-
-### 1. Launch EC2 Instance
-
-**Via AWS Console:**
-- AMI: Ubuntu 24.04 LTS
-- Instance type: `t3.small` (2 vCPU, 2GB RAM) — ~$15/mo
-- Storage: 20GB gp3
-- Security group: Allow SSH (22), optionally HTTPS (443)
-
-**Via AWS CLI:**
-```bash
-# Create security group
-aws ec2 create-security-group \
-  --group-name openclaw-work-sg \
-  --description "OpenClaw work instance"
-
-# Allow SSH
-aws ec2 authorize-security-group-ingress \
-  --group-name openclaw-work-sg \
-  --protocol tcp --port 22 --cidr YOUR_IP/32
-
-# Launch instance
-aws ec2 run-instances \
-  --image-id ami-0c7217cdde317cfec \
-  --instance-type t3.small \
-  --key-name your-key \
-  --security-groups openclaw-work-sg \
-  --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":20,"VolumeType":"gp3"}}]' \
-  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=openclaw-work}]'
-```
-
-### 2. SSH and Run Setup
-
-```bash
-# SSH into instance
-ssh -i your-key.pem ubuntu@<instance-ip>
-
-# Download and run setup script
-curl -fsSL https://raw.githubusercontent.com/point-labs-dev/work-openclaw-setup/main/setup-openclaw-aws.sh | bash
-
-# Or if you have the script locally:
-# scp setup-openclaw-aws.sh ubuntu@<ip>:~
-# ssh ubuntu@<ip> 'bash setup-openclaw-aws.sh'
-```
-
-### 3. Authenticate Claude Code
-
-```bash
-# IMPORTANT: Use your WORK credentials here
+# Authenticate with your WORK Claude account
 claude login
-```
 
-This opens a browser for OAuth. Sign in with your **work** Claude account.
-
-### 4. Configure OpenClaw
-
-```bash
+# Configure OpenClaw
 openclaw config
-```
 
-Set up:
-- Model preferences
-- Channels (Slack, etc.)
-- Any work-specific settings
+# Start the service
+sudo systemctl enable --now openclaw
 
-### 5. Start Service
-
-```bash
-sudo systemctl start openclaw
-sudo systemctl enable openclaw
-
-# Check status
+# Verify
 openclaw-status
 ```
 
-## Optional: Elastic IP
+## IP Address Changes
 
-For a static IP that persists across stops/starts:
-
-```bash
-# Allocate
-aws ec2 allocate-address --domain vpc
-
-# Associate (get allocation-id from above, instance-id from console)
-aws ec2 associate-address \
-  --instance-id i-xxxx \
-  --allocation-id eipalloc-xxxx
-```
-
-## Optional: Domain + HTTPS
-
-If you want webchat access:
-
-1. Point a domain to your instance IP (Route53 or your DNS)
-2. Install Caddy for automatic HTTPS:
+If your IP changes, update the security group:
 
 ```bash
-sudo apt install -y caddy
-
-sudo tee /etc/caddy/Caddyfile << EOF
-work-claw.yourcompany.com {
-    reverse_proxy localhost:3000
-}
-EOF
-
-sudo systemctl restart caddy
+npx sst secret set AllowedIP <new-ip>
+npx sst deploy --stage production
 ```
 
-## Useful Commands
+## Emergency Access
 
-| Command | Description |
-|---------|-------------|
-| `openclaw-status` | Service status + recent logs |
-| `openclaw-logs` | Follow live logs |
-| `openclaw config` | Edit configuration |
-| `sudo systemctl restart openclaw` | Restart service |
-| `claude logout && claude login` | Re-authenticate Claude |
+If locked out (IP changed, lost key), use AWS Session Manager:
 
-## Cost Estimate
+```bash
+aws ssm start-session --target <instance-id>
+```
+
+## Costs
 
 | Resource | Cost/Month |
 |----------|------------|
 | t3.small (on-demand) | ~$15 |
-| 20GB gp3 storage | ~$2 |
-| Elastic IP (optional) | Free while attached |
+| 20GB gp3 EBS | ~$2 |
+| Elastic IP | Free (while attached) |
 | **Total** | **~$17/mo** |
 
-Save ~30% with Reserved Instances or Savings Plans if running long-term.
+## Teardown
 
-## Troubleshooting
-
-**Service won't start:**
 ```bash
-journalctl -u openclaw -n 50 --no-pager
+npx sst remove --stage production
 ```
 
-**Claude auth issues:**
-```bash
-claude logout
-claude login
-sudo systemctl restart openclaw
-```
+## File Structure
 
-**Check if OpenClaw is listening:**
-```bash
-ss -tlnp | grep node
+```
+work-openclaw-setup/
+├── AGENTS.md          # AI agent instructions (Codex)
+├── CLAUDE.md          # Symlink for Claude Code
+├── README.md          # This file
+├── setup-openclaw-aws.sh  # Manual setup script (if needed)
+└── sst/
+    ├── sst.config.ts  # SST v3 infrastructure
+    └── package.json
 ```

@@ -1,104 +1,105 @@
-# Agent Instructions
+# AGENTS.md - Work OpenClaw Setup
 
-This directory contains infrastructure-as-code for deploying an OpenClaw instance on AWS.
+Deploy a security-hardened OpenClaw instance on AWS for work use.
 
-## Quick Decision Tree
+## Prerequisites
 
-1. **Does the user have SST installed?** → Use `sst/`
-2. **Does the user have Pulumi installed?** → Use `pulumi/`
-3. **Does the user have Terraform installed?** → Use `terraform/`
-4. **None of the above?** → Use `setup-openclaw-aws.sh` (requires SSH access to an Ubuntu EC2 instance)
+Before deploying, verify:
 
-## Prerequisites to Verify
+```bash
+# 1. AWS credentials configured
+aws sts get-caller-identity
 
-Before running any deployment, confirm the user has:
-
-1. **AWS credentials configured** (`aws sts get-caller-identity` should succeed)
-2. **An EC2 key pair** (ask: "What's the name of your EC2 key pair? If you don't have one, I can create it.")
-3. **Desired AWS region** (default: us-east-1)
+# 2. Get user's IP address (required for SSH restriction)
+curl -s ifconfig.me
+```
 
 ## Required Information
 
-| Parameter | Required | Default | How to Ask |
-|-----------|----------|---------|------------|
-| `keyName` | Yes | none | "What's your EC2 key pair name?" |
-| `region` | No | us-east-1 | "Which AWS region?" |
-| `instanceType` | No | t3.small | "Instance size? (t3.micro for light use, t3.small recommended)" |
-| `allowedSshCidr` | No | 0.0.0.0/0 | "Restrict SSH to your IP? (run `curl -s ifconfig.me`)" |
+| Parameter | Required | How to Get |
+|-----------|----------|------------|
+| `KeyName` | Yes | "What's your EC2 key pair name? (check AWS Console → EC2 → Key Pairs)" |
+| `AllowedIP` | Yes | "What's your IP? Run: `curl -s ifconfig.me`" |
+| `region` | No (default: us-east-1) | "Which AWS region?" |
 
-## Deployment Commands
+## Deployment
 
-### SST v3 (Recommended)
 ```bash
 cd sst
 npm install
-npx sst secret set KeyName <key-name>
+
+# Set required secrets
+npx sst secret set KeyName <key-pair-name>
+npx sst secret set AllowedIP <ip-address>
+
+# Deploy
 npx sst deploy --stage production
 ```
 
-### Pulumi
-```bash
-cd pulumi
-npm install
-pulumi stack init production
-pulumi config set keyName <key-name>
-pulumi config set aws:region <region>
-pulumi up --yes
-```
+## Post-Deployment (REQUIRED)
 
-### Terraform
-```bash
-cd terraform
-terraform init
-terraform apply -var="key_name=<key-name>" -var="aws_region=<region>" -auto-approve
-```
-
-### Manual Script (on existing EC2)
-```bash
-ssh ubuntu@<instance-ip> 'curl -fsSL <raw-script-url> | bash'
-```
-
-## Post-Deployment Steps
-
-After infrastructure is deployed, the user MUST:
-
-1. **SSH into the instance** (use the ssh command from deployment output)
-2. **Wait for cloud-init** (`tail -f /var/log/cloud-init-output.log` or check for `/home/ubuntu/setup-complete.txt`)
-3. **Authenticate Claude Code**: `claude login` — IMPORTANT: Use their WORK OAuth credentials
-4. **Configure OpenClaw**: `openclaw config`
-5. **Start service**: `sudo systemctl enable --now openclaw`
-
-## Verification Commands
+After `sst deploy` completes:
 
 ```bash
-# Check if setup completed
+# 1. SSH into instance (use sshCommand from output)
+ssh -i ~/.ssh/<key>.pem ubuntu@<ip>
+
+# 2. Verify setup completed
 cat /home/ubuntu/setup-complete.txt
 
-# Check service status
-openclaw-status
+# 3. Authenticate Claude Code with WORK account (Claude Max $200/mo)
+claude login
 
-# Test OpenClaw is responding
-openclaw status
+# 4. Configure OpenClaw
+openclaw config
+
+# 5. Start service
+sudo systemctl enable --now openclaw
+
+# 6. Verify
+openclaw-status
 ```
 
-## Common Issues
+## Security Features (Enabled by Default)
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| "Permission denied (publickey)" | Wrong key or key not added | Verify key name matches, check `~/.ssh/` |
-| cloud-init still running | Just deployed | Wait 2-3 minutes, check `/var/log/cloud-init-output.log` |
-| "command not found: openclaw" | cloud-init not finished | Wait for setup-complete.txt |
-| Service won't start | Not configured yet | Run `openclaw config` first |
+- ✅ SSH restricted to single IP (AllowedIP secret)
+- ✅ IMDSv2 required (SSRF protection)
+- ✅ EBS encrypted at rest
+- ✅ Automatic security updates (unattended-upgrades)
+- ✅ Fail2ban (SSH brute-force protection)
+- ✅ SSH password authentication disabled
+- ✅ Root login disabled
+- ✅ UFW firewall enabled
+- ✅ Systemd service hardened (NoNewPrivileges, ProtectSystem, etc.)
+- ✅ SSM Session Manager available (keyless emergency access)
 
-## Teardown Commands
+## Available Models (Work Accounts)
+
+- **Claude Max** ($200/mo) - Primary, used via `claude login`
+- **ChatGPT Pro** - Available if needed for specific tasks
+
+## Update SSH IP
+
+If your IP changes:
 
 ```bash
-# SST
-npx sst remove --stage production
-
-# Pulumi  
-pulumi destroy --yes
-
-# Terraform
-terraform destroy -auto-approve
+npx sst secret set AllowedIP <new-ip>
+npx sst deploy --stage production
 ```
+
+## Teardown
+
+```bash
+npx sst remove --stage production
+```
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Permission denied (publickey)" | Verify key name matches, check `~/.ssh/` |
+| "Connection timed out" | Your IP changed - update AllowedIP secret |
+| cloud-init still running | Wait 3-5 min, check `/var/log/openclaw-setup.log` |
+| "command not found: openclaw" | Setup not finished - wait for setup-complete.txt |
+| Service won't start | Run `openclaw config` first |
+| Need emergency access | Use SSM: `aws ssm start-session --target <instance-id>` |

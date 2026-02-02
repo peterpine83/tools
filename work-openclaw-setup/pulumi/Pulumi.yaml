@@ -1,5 +1,0 @@
-name: openclaw-work
-runtime: nodejs
-description: OpenClaw work instance on AWS
-config:
-  aws:region: us-east-1
