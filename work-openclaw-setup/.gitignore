@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# SST
+.sst/
+
+# Pulumi
+Pulumi.*.yaml
+!Pulumi.yaml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl
+
+# OS
+.DS_Store
+
+# Secrets
+*.pem

@@ -1,0 +1,14 @@
+{
+  "name": "openclaw-work-infra",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "sst dev",
+    "deploy": "sst deploy --stage production",
+    "remove": "sst remove --stage production"
+  },
+  "devDependencies": {
+    "sst": "^3.0.0",
+    "@types/node": "^20"
+  }
+}
