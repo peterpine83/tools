@@ -2,6 +2,8 @@
 
 Deploy a separate OpenClaw instance for work, billed to your work's Claude OAuth.
 
+> **🤖 AI Agents:** See [AGENT.md](./AGENT.md) for structured instructions, decision trees, and copy-paste commands.
+
 ## Deploy Options
 
 | Option | Best For |
