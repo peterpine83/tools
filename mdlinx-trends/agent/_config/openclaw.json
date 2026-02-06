@@ -1,0 +1,31 @@
+{
+  // MDLinx Trends Agent — OpenClaw Configuration
+  
+  // Model: Claude as primary orchestrator
+  // Grok and OpenAI available as tools (called via API, not as primary model)
+  agents: {
+    defaults: {
+      model: {
+        primary: "anthropic/claude-sonnet-4-5",
+        fallbacks: ["openai/gpt-4o"]
+      },
+      models: {
+        "anthropic/claude-sonnet-4-5": { alias: "Sonnet" },
+        "anthropic/claude-opus-4-6": { alias: "Opus" },
+        "openai/gpt-4o": { alias: "GPT-4o" }
+      },
+      workspace: "~/.openclaw/workspace"
+    }
+  },
+
+  browser: {
+    enabled: true,
+    defaultProfile: "openclaw",
+    headless: true,
+    noSandbox: true,
+    executablePath: "/usr/bin/chromium-browser",
+    profiles: {
+      openclaw: { cdpPort: 18800 }
+    }
+  }
+}

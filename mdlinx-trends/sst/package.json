@@ -1,0 +1,7 @@
+{
+  "name": "mdlinx-trends-infra",
+  "type": "module",
+  "dependencies": {
+    "sst": "^3"
+  }
+}
